@@ -109,8 +109,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useRuntimeConfig, useCookie } from '#imports'
 
 const router = useRouter()
+const config = useRuntimeConfig()
+
+// Initialize reactive cookies
+const tokenCookie = useCookie('chat_access_token')
+const userCookie = useCookie('chat_username')
+
 const isConnected = ref(false)
 const messages = ref([])
 const newMessage = ref('')
@@ -136,13 +143,23 @@ const formatTime = (ts) => {
 }
 
 const connectWebSocket = () => {
-  // Use protocol prefix correctly based on location.protocol, fallback to unsecure ws://
-  let socketUrl = 'ws://localhost:3001/'
+  if (!import.meta.client) return
 
-  if (import.meta.client && window.location.protocol === 'https:') {
-    // If you plan to deploy, use wss
-    socketUrl = `wss://${window.location.hostname}:8080/ws`
+  const accessToken = tokenCookie.value
+  const username = userCookie.value
+
+  // Force redirect if not logged in
+  if (!accessToken || !username) {
+    router.push('/login')
+    return
   }
+
+  // Use runtime config for WebSocket URL
+  let socketUrl = config.public.wsUrl || 'ws://localhost:3001/'
+
+  // Append the JWT token as a query parameter
+  const separator = socketUrl.includes('?') ? '&' : '?'
+  socketUrl += `${separator}token=${encodeURIComponent(accessToken)}`
 
   try {
     socket = new WebSocket(socketUrl)
@@ -197,12 +214,11 @@ const connectWebSocket = () => {
 
 onMounted(() => {
   if (import.meta.client) {
-    const username = localStorage.getItem('chat_username')
-    if (!username) {
+    if (!tokenCookie.value || !userCookie.value) {
       router.push('/login')
       return
     }
-    currentUser.value = username
+    currentUser.value = userCookie.value
     connectWebSocket()
   }
 })
@@ -216,7 +232,8 @@ onUnmounted(() => {
 
 const logout = () => {
   if (import.meta.client) {
-    localStorage.removeItem('chat_username')
+    tokenCookie.value = null
+    userCookie.value = null
     router.push('/login')
   }
 }
