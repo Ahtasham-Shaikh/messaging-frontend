@@ -29,6 +29,11 @@
             Welcome Back
           </h2>
           <p class="text-gray-400 mt-2 text-sm font-medium">Sign in to continue to NextGen Chat</p>
+          
+          <!-- Success message if just registered -->
+          <div v-if="route.query.registered" class="mt-4 px-4 py-2 bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-xs font-bold rounded-full animate-bounce">
+            Registration successful! Please sign in.
+          </div>
         </div>
 
         <!-- Form -->
@@ -123,8 +128,7 @@
 
         <p class="mt-8 text-center text-sm text-gray-500 font-medium">
           Don't have an account?
-          <a href="#" class="text-blue-400 hover:text-blue-300 transition-colors" @click.prevent="">Create an
-            account</a>
+          <NuxtLink to="/register" class="text-blue-400 hover:text-blue-300 transition-colors font-bold">Create an account</NuxtLink>
         </p>
       </div>
     </div>
@@ -133,10 +137,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useRuntimeConfig, useCookie } from '#imports'
 
 const router = useRouter()
+const route = useRoute()
 const config = useRuntimeConfig()
 const username = ref('')
 const password = ref('')

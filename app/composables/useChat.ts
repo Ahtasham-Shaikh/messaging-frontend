@@ -1,110 +1,85 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRuntimeConfig, useCookie } from '#imports'
+import { useWebSocket } from './useWebSocket'
 
-export const useChat = (recipientUser = 'testuser') => {
+interface Message {
+  text: string
+  sender: string
+  isSelf: boolean
+  timestamp: string | number
+}
+
+interface ChatHistoryResponse {
+  messages: Array<{
+    id: number
+    sender_id: number
+    receiver_id: number
+    content: string
+    created_at: string
+    sender_name: string
+  }>
+}
+
+export const useChat = (recipientUser?: string) => {
   const router = useRouter()
   const config = useRuntimeConfig()
   
   const tokenCookie = useCookie('chat_access_token')
   const userCookie = useCookie('chat_username')
   
-  const isConnected = ref(false)
-  const messages = ref([])
+  const messages = ref<Message[]>([])
   const currentUser = ref('Anonymous')
-  
-  let socket = null
-  let reconnectInterval = null
+  const isHistoryLoading = ref(false)
 
-  const connectWebSocket = () => {
-    if (!import.meta.client) return
-  
-    const accessToken = tokenCookie.value
-    const username = userCookie.value
-  
-    if (!accessToken || !username) {
-      router.push('/login')
-      return
-    }
-  
-    // Use runtime config for WebSocket URL
-    let socketUrl = config.public.wsUrl
+  // Use the simplified WebSocket composable
+  const { isConnected, connect, send, onMessage } = useWebSocket()
+
+  const fetchMessageHistory = async () => {
+    if (!tokenCookie.value || !recipientUser) return
     
-    // Append the JWT token as a query parameter
-    const separator = socketUrl.includes('?') ? '&' : '?'
-    socketUrl += `${separator}token=${encodeURIComponent(accessToken)}`
-  
+    isHistoryLoading.value = true
     try {
-      socket = new WebSocket(socketUrl)
-  
-      socket.onopen = () => {
-        isConnected.value = true
-        if (reconnectInterval) {
-          clearInterval(reconnectInterval)
-          reconnectInterval = null
+      const response = await $fetch<ChatHistoryResponse>(`${config.public.apiUrl}/users/chat/${recipientUser}`, {
+        headers: {
+          Authorization: `Bearer ${tokenCookie.value}`
         }
+      })
+      
+      if (response && response.messages) {
+        messages.value = response.messages.map(m => ({
+          text: m.content,
+          sender: m.sender_name,
+          isSelf: m.sender_name === userCookie.value,
+          timestamp: m.created_at
+        }))
       }
-  
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          messages.value.push({
-            text: data.text || data.message || data.content,
-            sender: data.sender || 'Server',
-            isSelf: false,
-            timestamp: data.timestamp || Date.now()
-          })
-        } catch (e) {
-          messages.value.push({
-            text: event.data,
-            sender: 'Server',
-            isSelf: false,
-            timestamp: Date.now()
-          })
-        }
-      }
-  
-      socket.onclose = () => {
-        isConnected.value = false
-        // Attempt to reconnect every 3 seconds
-        if (!reconnectInterval) {
-          reconnectInterval = setInterval(() => {
-            console.log('Attempting to reconnect...')
-            connectWebSocket()
-          }, 3000)
-        }
-      }
-  
-      socket.onerror = (error) => {
-        console.error('WebSocket Error:', error)
-        socket.close() // Trigger onclose to start reconnecting
-      }
-    } catch (err) {
-      console.error("Connection failed", err)
-      isConnected.value = false
+    } catch (error) {
+      console.error('Failed to fetch message history:', error)
+    } finally {
+      isHistoryLoading.value = false
     }
   }
 
-  const sendMessage = (messageText) => {
+  const sendMessage = (messageText: string) => {
     if (!messageText.trim() || !isConnected.value) return
   
+    // Add to local state
     messages.value.push({
       text: messageText,
+      sender: currentUser.value,
       isSelf: true,
       timestamp: Date.now()
     })
   
-    try {
-      socket.send(JSON.stringify({
-        type: 'direct_message',
-        recipient: recipientUser,
-        content: messageText,
-        sender: currentUser.value,
-        timestamp: Date.now()
-      }))
-    } catch (e) {
-      console.error('Failed to send message via WebSocket', e)
-    }
+    // Send via WebSocket
+    send({
+      type: 'direct_message',
+      recipient: recipientUser || 'testuser',
+      content: messageText,
+      sender: currentUser.value,
+      timestamp: Date.now()
+    })
   }
 
   const logout = () => {
@@ -122,19 +97,28 @@ export const useChat = (recipientUser = 'testuser') => {
         return
       }
       currentUser.value = userCookie.value
-      connectWebSocket()
-    }
-  })
-  
-  onUnmounted(() => {
-    if (reconnectInterval) clearInterval(reconnectInterval)
-    if (socket) {
-      socket.close()
+      
+      // Configure message handler
+      onMessage((data) => {
+        messages.value.push({
+          text: data.text || data.message || data.content || String(data),
+          sender: data.sender || 'Server',
+          isSelf: data.sender === currentUser.value,
+          timestamp: data.timestamp || Date.now()
+        })
+      })
+
+      connect()
+      
+      if (recipientUser) {
+        fetchMessageHistory()
+      }
     }
   })
 
   return {
     isConnected,
+    isHistoryLoading,
     messages,
     currentUser,
     sendMessage,

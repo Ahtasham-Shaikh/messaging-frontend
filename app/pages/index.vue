@@ -33,28 +33,44 @@
           <h3 class="text-xl font-semibold text-gray-200 mb-4 px-2 tracking-tight">Recent Contacts</h3>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div v-for="contact in recentContacts" :key="contact.username" @click="openChat(contact.username)"
-              class="bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/50 hover:border-gray-600 rounded-2xl p-5 cursor-pointer transition-all duration-200 transform hover:-translate-y-1 shadow-lg hover:shadow-xl group">
-              <div class="flex items-center gap-4">
-                <div class="relative">
-                  <div
-                    class="w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center text-lg font-bold text-white shadow-inner"
-                    :class="contact.color">
-                    {{ contact.username.charAt(0).toUpperCase() }}
+            <!-- Loading State -->
+            <template v-if="isContactsLoading">
+              <div v-for="i in 6" :key="i" class="bg-gray-800/40 border border-gray-700/50 rounded-2xl p-5 animate-pulse">
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 rounded-full bg-gray-700"></div>
+                  <div class="flex-1 space-y-2">
+                    <div class="h-4 bg-gray-700 rounded w-3/4"></div>
+                    <div class="h-3 bg-gray-700 rounded w-1/2"></div>
                   </div>
-                  <span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-800"
-                    :class="contact.online ? 'bg-emerald-500' : 'bg-gray-500'"></span>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h4 class="text-white font-semibold truncate group-hover:text-blue-400 transition-colors">
-                    {{ contact.username }}
-                  </h4>
-                  <p class="text-sm text-gray-500 truncate">
-                    {{ contact.online ? 'Active now' : `Last seen ${contact.lastSeen}` }}
-                  </p>
                 </div>
               </div>
-            </div>
+            </template>
+
+            <!-- Contacts List -->
+            <template v-else>
+              <div v-for="contact in recentContacts" :key="contact.username" @click="openChat(contact.username)"
+                class="bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/50 hover:border-gray-600 rounded-2xl p-5 cursor-pointer transition-all duration-200 transform hover:-translate-y-1 shadow-lg hover:shadow-xl group">
+                <div class="flex items-center gap-4">
+                  <div class="relative">
+                    <div
+                      class="w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center text-lg font-bold text-white shadow-inner"
+                      :class="contact.color">
+                      {{ contact.username.charAt(0).toUpperCase() }}
+                    </div>
+                    <span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-800"
+                      :class="contact.online ? 'bg-emerald-500' : 'bg-gray-500'"></span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="text-white font-semibold truncate group-hover:text-blue-400 transition-colors">
+                      {{ contact.username }}
+                    </h4>
+                    <p class="text-sm text-gray-500 truncate">
+                      {{ contact.online ? 'Active now' : `Last seen ${contact.lastSeen}` }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -66,6 +82,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useRuntimeConfig, useCookie, useChat } from '#imports'
+import { getUserColor } from '../utils/colors'
 
 const router = useRouter()
 const config = useRuntimeConfig()
@@ -76,9 +94,11 @@ const { isConnected, logout, currentUser } = useChat()
 
 const newRecipient = ref('')
 const contactsList = ref([])
+const isContactsLoading = ref(false)
 
 onMounted(async () => {
   if (import.meta.client && tokenCookie.value) {
+    isContactsLoading.value = true
     try {
       const data = await $fetch(`${config.public.apiUrl}/users/contacts`, {
         headers: {
@@ -90,6 +110,8 @@ onMounted(async () => {
       }
     } catch (error) {
       console.error('Failed to load contacts:', error)
+    } finally {
+      isContactsLoading.value = false
     }
   }
 })
