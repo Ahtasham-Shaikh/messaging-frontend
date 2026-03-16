@@ -17,12 +17,22 @@
         </svg>
       </div>
       <h1 class="flex flex-col">
-        <span class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent tracking-tight">
-          NextGen Chat
+        <span class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent tracking-tight capitalize">
+          {{ chattingWith || 'NextGen Chat' }}
         </span>
-        <span v-if="chattingWith" class="text-xs font-semibold text-gray-400">
-          Chatting with @{{ chattingWith }}
-        </span>
+        <div v-if="chattingWith" class="text-xs font-semibold text-gray-400 flex items-center gap-1.5 mt-0.5">
+          <span v-if="recipientStatus" class="flex items-center gap-1.5">
+            <span v-if="recipientStatus.is_online" class="flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span>
+              <span class="text-emerald-400">Online</span>
+            </span>
+            <span v-else-if="recipientStatus.last_seen" class="text-gray-500 italic">
+              Last seen {{ formatLastSeen(recipientStatus.last_seen) }}
+            </span>
+            <span v-else class="text-gray-500 italic">Offline</span>
+          </span>
+          <span v-else class="italic opacity-50">Connecting...</span>
+        </div>
       </h1>
     </div>
     <div class="flex items-center gap-4">
@@ -54,7 +64,17 @@ defineProps({
   chattingWith: {
     type: String,
     default: ''
+  },
+  recipientStatus: {
+    type: Object,
+    default: null
   }
 })
 defineEmits(['logout', 'back'])
+
+const formatLastSeen = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 </script>

@@ -6,6 +6,7 @@
       @logout="logout" 
       @back="goBack"
       :chattingWith="recipientParam"
+      :recipientStatus="recipientStatus"
     />
 
     <!-- Chat Area -->
@@ -34,7 +35,7 @@ const router = useRouter()
 const recipientParam = route.params.user
 
 const newMessage = ref('')
-const { isConnected, messages, sendMessage, logout } = useChat(recipientParam)
+const { isConnected, messages, sendMessage, logout, recipientStatus } = useChat(recipientParam)
 
 const handleSend = () => {
   if (newMessage.value.trim()) {

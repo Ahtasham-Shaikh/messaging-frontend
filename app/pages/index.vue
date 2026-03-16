@@ -58,14 +58,16 @@
                       {{ contact.username.charAt(0).toUpperCase() }}
                     </div>
                     <span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-800"
-                      :class="contact.online ? 'bg-emerald-500' : 'bg-gray-500'"></span>
+                      :class="contact.online ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-gray-500'"></span>
                   </div>
                   <div class="flex-1 min-w-0">
                     <h4 class="text-white font-semibold truncate group-hover:text-blue-400 transition-colors">
                       {{ contact.username }}
                     </h4>
-                    <p class="text-sm text-gray-500 truncate">
-                      {{ contact.online ? 'Active now' : `Last seen ${contact.lastSeen}` }}
+                    <p class="text-xs text-gray-500 truncate flex items-center gap-1">
+                      <span v-if="contact.online" class="text-emerald-400 font-medium">Online</span>
+                      <span v-else-if="contact.lastSeen">Last seen {{ contact.lastSeen }}</span>
+                      <span v-else>Offline</span>
                     </p>
                   </div>
                 </div>
@@ -122,10 +124,17 @@ const recentContacts = computed(() => {
     .filter(c => c.username !== currentUser.value)
     .map(c => ({
       ...c,
-      online: true, // Optionally swap with actual presence data
+      online: c.is_online,
+      lastSeen: formatContactTime(c.last_seen),
       color: getUserColor(c.username || c.id)
     }))
 })
+
+const formatContactTime = (timestamp) => {
+  if (!timestamp) return null
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 const startNewChat = () => {
   const target = newRecipient.value.trim()

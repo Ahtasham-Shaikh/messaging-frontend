@@ -31,6 +31,7 @@ export const useChat = (recipientUser?: string) => {
   const messages = ref<Message[]>([])
   const currentUser = ref('Anonymous')
   const isHistoryLoading = ref(false)
+  const recipientStatus = ref<{ is_online: boolean; last_seen: string | null } | null>(null)
 
   // Use the simplified WebSocket composable
   const { isConnected, connect, send, onMessage } = useWebSocket()
@@ -61,6 +62,32 @@ export const useChat = (recipientUser?: string) => {
     }
   }
 
+  const fetchRecipientStatus = async () => {
+    if (!tokenCookie.value || !recipientUser) return
+    
+    try {
+      // Use the new usernames[] query parameter to fetch ONLY the recipient's status
+      const response = await $fetch<{ contacts: any[] }>(`${config.public.apiUrl}/users/contacts`, {
+        headers: {
+          Authorization: `Bearer ${tokenCookie.value}`
+        },
+        params: {
+          'usernames[]': [recipientUser]
+        }
+      })
+      
+      if (response && response.contacts && response.contacts.length > 0) {
+        const contact = response.contacts[0]
+        recipientStatus.value = {
+          is_online: contact.is_online,
+          last_seen: contact.last_seen
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch recipient status:', error)
+    }
+  }
+
   const sendMessage = (messageText: string) => {
     if (!messageText.trim() || !isConnected.value) return
   
@@ -75,7 +102,7 @@ export const useChat = (recipientUser?: string) => {
     // Send via WebSocket
     send({
       type: 'direct_message',
-      recipient: recipientUser || 'testuser',
+      recipient: recipientUser,
       content: messageText,
       sender: currentUser.value,
       timestamp: Date.now()
@@ -112,6 +139,7 @@ export const useChat = (recipientUser?: string) => {
       
       if (recipientUser) {
         fetchMessageHistory()
+        fetchRecipientStatus()
       }
     }
   })
@@ -119,6 +147,7 @@ export const useChat = (recipientUser?: string) => {
   return {
     isConnected,
     isHistoryLoading,
+    recipientStatus,
     messages,
     currentUser,
     sendMessage,
